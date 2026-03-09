@@ -5,10 +5,14 @@ services:
     ports:
       - "8080:8080"
     volumes:
-     ## Format should be /app/logs/<service or app name>
+      ## Format should be /app/logs/<service or app name>
       - /app/api/logs:/app/logs/api:ro
       - /app/identity/logs:/app/logs/identity:ro
     environment:
+      # ── Optional: Base path for reverse proxy subpath ─────────────────
+      # Set this if serving under a subpath e.g. https://host/logvault/
+      BASE_PATH: "/logvault"
+
       # ── Optional: Basic Auth ──────────────────────────────────────────
       # Remove or leave blank to run without authentication.
       # Both AUTH_USER and AUTH_PASSWORD must be set to enable auth.
@@ -20,7 +24,7 @@ services:
     restart: unless-stopped
     healthcheck:
       # /health is always public — exempt from Basic Auth
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/logvault/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

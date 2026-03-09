@@ -17,11 +17,22 @@ import (
 
 const logsDir = "/app/logs"
 
+// basePath is the URL prefix (e.g. "/logvault"). Always no trailing slash.
+var basePath string
+
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
 	}
 	return fallback
+}
+
+// p returns an absolute URL path with the basePath prefix applied.
+func p(path string) string {
+	if basePath == "" {
+		return path
+	}
+	return basePath + path
 }
 
 // ── Session store ─────────────────────────────────────────────────────────────
@@ -119,7 +130,7 @@ var loginTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
     <div class="logo-row"><div class="logo-icon">⬡</div><h1>LogVault</h1></div>
     <p class="tagline">Secure log access — sign in to continue</p>
     {{if .Error}}<div class="error">⚠ {{.Error}}</div>{{end}}
-    <form method="POST" action="/login">
+    <form method="POST" action="{{.LoginAction}}">
       <label>Username</label>
       <input type="text" name="username" autocomplete="username" autofocus placeholder="enter username">
       <label>Password</label>
@@ -198,18 +209,18 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     <div class="topbar">
       <div class="logo-row"><div class="logo-icon">⬡</div><h1>LogVault</h1></div>
       {{if .AuthEnabled}}
-      <form method="POST" action="/logout" style="margin:0">
+      <form method="POST" action="{{.LogoutAction}}" style="margin:0">
         <button class="logout-btn" type="submit">⏏ Sign out</button>
       </form>
       {{end}}
     </div>
 
     <div class="breadcrumb">
-      <a href="/browse/">⌂ root</a>
+      <a href="{{.BrowseRoot}}">⌂ root</a>
       {{range .Crumbs}}
         <span class="sep">/</span>
         {{if .IsLast}}<span class="current">{{.Name}}</span>
-        {{else}}<a href="/browse/{{.Path}}">{{.Name}}</a>{{end}}
+        {{else}}<a href="{{.URL}}">{{.Name}}</a>{{end}}
       {{end}}
     </div>
 
@@ -228,7 +239,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
       <div class="log-row">
         <div class="entry-name">
           <div class="entry-icon dir-icon">↑</div>
-          <a class="entry-link up-link" href="/browse/{{.ParentPath}}">..</a>
+          <a class="entry-link up-link" href="{{.ParentURL}}">..</a>
         </div>
         <div></div><div></div><div></div>
       </div>
@@ -238,7 +249,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
         <div class="entry-name">
           <div class="entry-icon {{if .IsDir}}dir-icon{{else}}file-icon{{end}}">{{if .IsDir}}📁{{else}}📄{{end}}</div>
           {{if .IsDir}}
-            <a class="entry-link dir-link" href="/browse/{{.RelPath}}">{{.Name}}</a>
+            <a class="entry-link dir-link" href="{{.BrowseURL}}">{{.Name}}</a>
           {{else}}
             <span class="entry-link" style="cursor:default">{{.Name}}</span>
           {{end}}
@@ -247,7 +258,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
         <div class="file-modified">{{.Modified}}</div>
         <div>
           {{if notDir .IsDir}}
-          <a class="download-btn" href="/download/{{.RelPath}}">↓ Download</a>
+          <a class="download-btn" href="{{.DownloadURL}}">↓ Download</a>
           {{end}}
         </div>
       </div>
@@ -261,7 +272,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     </div>
     {{end}}
 
-    <div class="footer">LogVault · Minimal Log Server · by Lokendra Bhat</div>
+    <div class="footer">LogVault · Minimal Log Server · Port {{.Port}}</div>
   </div>
 </body>
 </html>`))
@@ -270,18 +281,29 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
 
 type Crumb struct {
 	Name   string
-	Path   string
+	URL    string
 	IsLast bool
 }
 
+type EntryView struct {
+	Name        string
+	IsDir       bool
+	Size        string
+	Modified    string
+	BrowseURL   string
+	DownloadURL string
+}
+
 type PageData struct {
-	Entries     []Entry
-	Count       int
-	SubPath     string
-	ParentPath  string
-	Crumbs      []Crumb
-	Port        string
-	AuthEnabled bool
+	Entries      []EntryView
+	Count        int
+	SubPath      string
+	ParentURL    string
+	BrowseRoot   string
+	Crumbs       []Crumb
+	Port         string
+	AuthEnabled  bool
+	LogoutAction string
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -299,12 +321,12 @@ func formatSize(bytes int64) string {
 	}
 }
 
-func listDir(dir string, relBase string) ([]Entry, error) {
+func listDir(dir string, relBase string) ([]EntryView, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	var result []Entry
+	var result []EntryView
 	for _, e := range entries {
 		info, err := e.Info()
 		if err != nil {
@@ -314,18 +336,19 @@ func listDir(dir string, relBase string) ([]Entry, error) {
 		if relBase != "" {
 			rel = relBase + "/" + e.Name()
 		}
-		entry := Entry{
+		ev := EntryView{
 			Name:     e.Name(),
 			IsDir:    e.IsDir(),
 			Modified: info.ModTime().Format("2006-01-02 15:04"),
-			RelPath:  rel,
 		}
-		if !e.IsDir() {
-			entry.Size = formatSize(info.Size())
+		if e.IsDir() {
+			ev.BrowseURL = p("/browse/" + rel)
+		} else {
+			ev.Size = formatSize(info.Size())
+			ev.DownloadURL = p("/download/" + rel)
 		}
-		result = append(result, entry)
+		result = append(result, ev)
 	}
-	// Directories first, then files; each group sorted alphabetically
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].IsDir != result[j].IsDir {
 			return result[i].IsDir
@@ -341,22 +364,22 @@ func buildCrumbs(subPath string) []Crumb {
 	}
 	parts := strings.Split(subPath, "/")
 	crumbs := make([]Crumb, len(parts))
-	for i, p := range parts {
+	for i, part := range parts {
 		crumbs[i] = Crumb{
-			Name:   p,
-			Path:   strings.Join(parts[:i+1], "/"),
+			Name:   part,
+			URL:    p("/browse/" + strings.Join(parts[:i+1], "/")),
 			IsLast: i == len(parts)-1,
 		}
 	}
 	return crumbs
 }
 
-func parentPath(subPath string) string {
+func parentURL(subPath string) string {
 	idx := strings.LastIndex(subPath, "/")
 	if idx < 0 {
-		return ""
+		return p("/browse/")
 	}
-	return subPath[:idx]
+	return p("/browse/" + subPath[:idx])
 }
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
@@ -376,7 +399,7 @@ func requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		if !validSession(sessionToken(r)) {
-			http.Redirect(w, r, "/login", http.StatusFound)
+			http.Redirect(w, r, p("/login"), http.StatusFound)
 			return
 		}
 		next(w, r)
@@ -387,15 +410,18 @@ func requireAuth(next http.HandlerFunc) http.HandlerFunc {
 
 func loginPageHandler(w http.ResponseWriter, r *http.Request) {
 	if !auth.enabled {
-		http.Redirect(w, r, "/browse/", http.StatusFound)
+		http.Redirect(w, r, p("/browse/"), http.StatusFound)
 		return
 	}
 	if validSession(sessionToken(r)) {
-		http.Redirect(w, r, "/browse/", http.StatusFound)
+		http.Redirect(w, r, p("/browse/"), http.StatusFound)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	loginTmpl.Execute(w, map[string]string{"Error": ""})
+	loginTmpl.Execute(w, map[string]string{
+		"Error":       "",
+		"LoginAction": p("/login"),
+	})
 }
 
 func loginPostHandler(w http.ResponseWriter, r *http.Request) {
@@ -405,34 +431,45 @@ func loginPostHandler(w http.ResponseWriter, r *http.Request) {
 
 	if user == auth.username && pass == auth.password {
 		token := newSession()
+		cookiePath := "/"
+		if basePath != "" {
+			cookiePath = basePath + "/"
+		}
 		http.SetCookie(w, &http.Cookie{
 			Name:     "lv_session",
 			Value:    token,
-			Path:     "/",
+			Path:     cookiePath,
 			HttpOnly: true,
 			SameSite: http.SameSiteLaxMode,
 			MaxAge:   int(sessionTTL.Seconds()),
 		})
-		http.Redirect(w, r, "/browse/", http.StatusFound)
+		http.Redirect(w, r, p("/browse/"), http.StatusFound)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusUnauthorized)
-	loginTmpl.Execute(w, map[string]string{"Error": "Invalid username or password"})
+	loginTmpl.Execute(w, map[string]string{
+		"Error":       "Invalid username or password",
+		"LoginAction": p("/login"),
+	})
 }
 
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
 	deleteSession(sessionToken(r))
+	cookiePath := "/"
+	if basePath != "" {
+		cookiePath = basePath + "/"
+	}
 	http.SetCookie(w, &http.Cookie{
-		Name: "lv_session", Value: "", Path: "/",
+		Name: "lv_session", Value: "", Path: cookiePath,
 		HttpOnly: true, MaxAge: -1,
 	})
-	http.Redirect(w, r, "/login", http.StatusFound)
+	http.Redirect(w, r, p("/login"), http.StatusFound)
 }
 
 func browseHandler(w http.ResponseWriter, r *http.Request) {
-	subPath := strings.TrimPrefix(r.URL.Path, "/browse/")
+	subPath := strings.TrimPrefix(r.URL.Path, p("/browse/"))
 	subPath = strings.Trim(subPath, "/")
 
 	targetDir := filepath.Clean(filepath.Join(logsDir, filepath.FromSlash(subPath)))
@@ -450,24 +487,26 @@ func browseHandler(w http.ResponseWriter, r *http.Request) {
 
 	entries, err := listDir(targetDir, subPath)
 	if err != nil {
-		entries = []Entry{}
+		entries = []EntryView{}
 	}
 
 	data := PageData{
-		Entries:     entries,
-		Count:       len(entries),
-		SubPath:     subPath,
-		ParentPath:  parentPath(subPath),
-		Crumbs:      buildCrumbs(subPath),
-		Port:        getEnv("PORT", "8080"),
-		AuthEnabled: auth.enabled,
+		Entries:      entries,
+		Count:        len(entries),
+		SubPath:      subPath,
+		ParentURL:    parentURL(subPath),
+		BrowseRoot:   p("/browse/"),
+		Crumbs:       buildCrumbs(subPath),
+		Port:         getEnv("PORT", "8080"),
+		AuthEnabled:  auth.enabled,
+		LogoutAction: p("/logout"),
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	browserTmpl.Execute(w, data)
 }
 
 func downloadHandler(w http.ResponseWriter, r *http.Request) {
-	name := strings.TrimPrefix(r.URL.Path, "/download/")
+	name := strings.TrimPrefix(r.URL.Path, p("/download/"))
 	if name == "" {
 		http.Error(w, "Invalid filename", http.StatusBadRequest)
 		return
@@ -504,8 +543,21 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `{"status":"ok","time":"%s"}`, time.Now().UTC().Format(time.RFC3339))
 }
 
+// ── Main ──────────────────────────────────────────────────────────────────────
+
 func main() {
 	port := getEnv("PORT", "8080")
+
+	// Normalise BASE_PATH: always no trailing slash, must start with / if set
+	bp := os.Getenv("BASE_PATH")
+	bp = strings.TrimRight(bp, "/")
+	if bp != "" && !strings.HasPrefix(bp, "/") {
+		bp = "/" + bp
+	}
+	basePath = bp
+	if basePath != "" {
+		fmt.Printf("Base path: %s\n", basePath)
+	}
 
 	user := os.Getenv("AUTH_USER")
 	pass := os.Getenv("AUTH_PASSWORD")
@@ -518,27 +570,35 @@ func main() {
 
 	os.MkdirAll(logsDir, 0755)
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
+	mux := http.NewServeMux()
+
+	// Root redirect
+	rootPath := basePath + "/"
+	if basePath == "" {
+		rootPath = "/"
+	}
+	mux.HandleFunc(rootPath, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != rootPath {
 			http.NotFound(w, r)
 			return
 		}
-		http.Redirect(w, r, "/browse/", http.StatusFound)
+		http.Redirect(w, r, p("/browse/"), http.StatusFound)
 	})
-	http.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+
+	mux.HandleFunc(p("/login"), func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			loginPostHandler(w, r)
 		} else {
 			loginPageHandler(w, r)
 		}
 	})
-	http.HandleFunc("/logout", requireAuth(logoutHandler))
-	http.HandleFunc("/browse/", requireAuth(browseHandler))
-	http.HandleFunc("/download/", requireAuth(downloadHandler))
-	http.HandleFunc("/health", healthHandler)
+	mux.HandleFunc(p("/logout"), requireAuth(logoutHandler))
+	mux.HandleFunc(p("/browse/"), requireAuth(browseHandler))
+	mux.HandleFunc(p("/download/"), requireAuth(downloadHandler))
+	mux.HandleFunc(p("/health"), healthHandler)
 
 	fmt.Printf("LogVault running on :%s — serving %s\n", port, logsDir)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 		os.Exit(1)
 	}
