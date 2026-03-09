@@ -5,8 +5,21 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - /var/log/nginx:/app/logs:ro        # :ro = read-only (safe for production)
+     ## Format should be /app/logs/<service or app name>
+      - /app/api/logs:/app/logs/api:ro
+      - /app/identity/logs:/app/logs/identity:ro
+    environment:
+      # ── Optional: Basic Auth ──────────────────────────────────────────
+      # Remove or leave blank to run without authentication.
+      # Both AUTH_USER and AUTH_PASSWORD must be set to enable auth.
+      AUTH_USER: ""
+      AUTH_PASSWORD: ""
+
+      # ── Optional: custom port (default 8080) ─────────────────────────
+      # PORT: 9000
+    restart: unless-stopped
     healthcheck:
+      # /health is always public — exempt from Basic Auth
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
       interval: 30s
       timeout: 5s
