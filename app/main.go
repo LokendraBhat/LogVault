@@ -103,6 +103,7 @@ var loginTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LogVault · Sign In</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
   <style>
     :root{--bg:#0a0a0f;--surface:#111118;--border:#1e1e2e;--accent:#00ff9d;--accent2:#7c3aed;--text:#e2e8f0;--muted:#4a5568}
@@ -151,6 +152,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LogVault{{if .SubPath}} · /{{.SubPath}}{{end}}</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
   <style>
     :root{--bg:#0a0a0f;--surface:#111118;--border:#1e1e2e;--accent:#00ff9d;--accent2:#7c3aed;--text:#e2e8f0;--muted:#4a5568;--folder:#f59e0b}
