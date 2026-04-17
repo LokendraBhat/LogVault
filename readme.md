@@ -1,17 +1,21 @@
 # LogVault ⬡
 
-> Open-source Docker app to browse & download server logs from `/app/logs` via a clean web UI. Supports folder navigation, one-click downloads, and optional session-based auth. Built in Go on a `scratch` base image (~5 MB).
+> Open-source Docker app to browse, view, tail, and download server logs from `/app/logs` via a clean web UI. Supports folder navigation, live tail streaming, full file viewer with keyword search, and optional session-based auth. Built in Go on a `scratch` base image (~8.62 MB).
 
 ---
 
 ## Features
 
 - 📁 Browse nested log directories like a file explorer
+- 👁️ View full file content with line numbers and keyword search
 - ⬇️ One-click download for any log file
+- 📡 Live tail via Server-Sent Events (SSE) with real-time keyword filter
+- 🔍 Keyword search with highlight, prev/next navigation, and filter mode
+- 🔃 Sortable table columns — click Name, Size, or Modified to sort (asc/desc)
 - 🔐 Optional session-based login page (env-driven, no config files)
 - 🗂️ Mount multiple services under `/app/logs/<service>`
 - 🌐 `BASE_PATH` support for reverse proxy subpath deployments
-- 🐳 Final Docker image built on `scratch` — ~5 MB, zero OS overhead
+- 🐳 Final Docker image built on `scratch` — ~8.62 MB, zero OS overhead
 - 🛡️ Path traversal blocked, logs mounted read-only, `HttpOnly` session cookies
 - 💚 `/health` endpoint always public for container orchestrators
 
@@ -22,7 +26,7 @@
 ```
 golang:alpine  ── build stage (compiles static binary, CGO_ENABLED=0)
      │
-     └── scratch ── runtime stage (binary + CA certs only, ~5 MB)
+     └── scratch ── runtime stage (binary + CA certs only, ~8.62 MB)
 ```
 
 ---
@@ -52,6 +56,29 @@ Open [http://localhost:8080](http://localhost:8080)
 
 ---
 
+## File Viewer
+
+Click **≡ View** on any log file to open the full file viewer:
+
+- Line numbers with scrollable content
+- **Search** input (or press `Ctrl+F`) — highlights all keyword matches in amber
+- `↑` / `↓` buttons or `Enter` / `Shift+Enter` to jump between matches
+- **Filter** toggle — hides non-matching lines entirely
+- Files over 5 MB show only the last 5 MB with a warning banner
+
+---
+
+## Live Tail
+
+Click **⊞ Tail** to open the real-time log tail:
+
+- Streams new lines via Server-Sent Events as they are written
+- **Filter** input in the toolbar — matching lines are highlighted, non-matching lines are dimmed
+- **↺ Clear** button to reset the stream and start fresh
+- Auto-reconnects on disconnect
+
+---
+
 ## Reverse Proxy / Subpath Deployment
 
 LogVault supports being served under a URL subpath via the `BASE_PATH` env var.
@@ -75,7 +102,7 @@ environment:
   BASE_PATH: "/logvault"
 ```
 
-All internal links, redirects, breadcrumbs, form actions, and cookie paths are automatically prefixed. Accessing `https://devbot.server247.info/logvault/` will work correctly end-to-end.
+All internal links, redirects, breadcrumbs, form actions, and cookie paths are automatically prefixed.
 
 ---
 
@@ -90,7 +117,7 @@ environment:
 ```
 
 | Behaviour | Detail |
-|---|---|
+| --- | --- |
 | Auth disabled | All pages accessible without login |
 | Auth enabled | Login page shown on first visit |
 | Session TTL | 8 hours (in-memory, resets on container restart) |
@@ -103,11 +130,14 @@ environment:
 All endpoints are prefixed with `BASE_PATH` when set (e.g. `/logvault/browse/`).
 
 | Endpoint | Description |
-|---|---|
+| --- | --- |
 | `GET /` | Redirects to `/browse/` |
 | `GET /browse/` | Root log directory browser |
-| `GET /browse/<path>` | Browse a subdirectory (e.g. `/browse/api`) |
-| `GET /download/<path>` | Download a specific log file |
+| `GET /browse/<path>` | Browse a subdirectory |
+| `GET /view/<path>` | View full file content with search |
+| `GET /tail/<path>` | Live tail viewer page |
+| `GET /tail-stream/<path>` | SSE stream endpoint (used by tail page) |
+| `GET /download/<path>` | Download a log file |
 | `GET /health` | JSON health check — always public |
 | `GET /login` | Login page (only when auth is enabled) |
 | `POST /logout` | Clears session cookie |
@@ -119,7 +149,7 @@ All endpoints are prefixed with `BASE_PATH` when set (e.g. `/logvault/browse/`).
 All configuration is via environment variables — no config files needed.
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `BASE_PATH` | _(unset)_ | URL prefix for reverse proxy (e.g. `/logvault`). No trailing slash. |
 | `AUTH_USER` | _(unset)_ | Username for login. Auth disabled if blank. |
 | `AUTH_PASSWORD` | _(unset)_ | Password for login. Auth disabled if blank. |
@@ -145,9 +175,9 @@ This makes each service appear as a top-level folder in the browser.
 ## Image Size
 
 | Stage | Base | Approx. Size |
-|---|---|---|
+| --- | --- | --- |
 | Build | `golang:alpine` | ~350 MB |
-| **Final** | **`scratch`** | **~5 MB** |
+| **Final** | **`scratch`** | **~8.62 MB** |
 
 ---
 
@@ -161,4 +191,3 @@ This makes each service appear as a top-level folder in the browser.
 - Session cookie is `HttpOnly` and `SameSite=Lax`
 
 ---
-
