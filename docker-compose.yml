@@ -6,8 +6,7 @@ services:
       - "8080:8080"
     volumes:
       ## Format should be /app/logs/<service or app name>
-      - /app/api/logs:/app/logs/api:ro
-      - /app/identity/logs:/app/logs/identity:ro
+      - /var/log:/app/logs/system:ro
     environment:
       # ── Optional: Base path for reverse proxy subpath ─────────────────
       # Set this if serving under a subpath e.g. https://host/logvault/
@@ -16,8 +15,8 @@ services:
       # ── Optional: Basic Auth ──────────────────────────────────────────
       # Remove or leave blank to run without authentication.
       # Both AUTH_USER and AUTH_PASSWORD must be set to enable auth.
-      AUTH_USER: ""
-      AUTH_PASSWORD: ""
+      AUTH_USER: "admin"
+      AUTH_PASSWORD: "admin"
 
       # ── Optional: custom port (default 8080) ─────────────────────────
       # PORT: 9000
