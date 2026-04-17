@@ -29,6 +29,20 @@ type EntryView struct {
 	BrowseURL   string
 	DownloadURL string
 	TailURL     string
+	ViewURL     string
+}
+
+// ViewPageData is the template data for the file viewer page.
+type ViewPageData struct {
+	FileName     string
+	FilePath     string
+	ContentJSON  template.JS
+	LineCount    int
+	Truncated    bool
+	DownloadURL  string
+	BrowseURL    string
+	AuthEnabled  bool
+	LogoutAction string
 }
 
 // PageData is the template data for the file browser page.

@@ -84,6 +84,7 @@ func main() {
 	mux.HandleFunc(p("/download/"), requireAuth(downloadHandler))
 	mux.HandleFunc(p("/tail/"), requireAuth(tailPageHandler))
 	mux.HandleFunc(p("/tail-stream/"), requireAuth(tailStreamHandler))
+	mux.HandleFunc(p("/view/"), requireAuth(viewHandler))
 	mux.HandleFunc(p("/health"), healthHandler)
 
 	fmt.Printf("LogVault running on :%s — serving %s\n", port, logsDir)

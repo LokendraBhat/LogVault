@@ -78,8 +78,8 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     .status-bar span{color:var(--text)}
     .tag{display:inline-block;padding:.1rem .4rem;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:3px;color:var(--accent);font-size:.63rem}
     .log-table{background:var(--surface);border:1px solid var(--border);border-radius:7px;overflow:hidden}
-    .table-header{display:grid;grid-template-columns:1fr 90px 150px 200px;padding:.55rem 1rem;border-bottom:1px solid var(--border);font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
-    .log-row{display:grid;grid-template-columns:1fr 90px 150px 200px;padding:.75rem 1rem;border-bottom:1px solid var(--border);align-items:center;transition:background .12s;position:relative}
+    .table-header{display:grid;grid-template-columns:1fr 90px 150px auto;padding:.55rem 1rem;border-bottom:1px solid var(--border);font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+    .log-row{display:grid;grid-template-columns:1fr 90px 150px auto;padding:.75rem 1rem;border-bottom:1px solid var(--border);align-items:center;transition:background .12s;position:relative}
     .log-row:last-child{border-bottom:none}
     .log-row:hover{background:rgba(255,255,255,.02)}
     .log-row::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent);opacity:0;transition:opacity .12s}
@@ -95,7 +95,9 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     .file-size{font-size:.72rem;color:var(--muted)}
     .file-modified{font-size:.7rem;color:var(--muted)}
     .actions{display:flex;align-items:center;gap:.4rem}
-    .download-btn,.tail-btn{display:inline-flex;align-items:center;gap:.3rem;padding:.28rem .65rem;background:transparent;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.67rem;text-decoration:none;transition:all .12s;white-space:nowrap}
+    .download-btn,.tail-btn,.view-btn{display:inline-flex;align-items:center;gap:.3rem;padding:.28rem .65rem;background:transparent;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.67rem;text-decoration:none;transition:all .12s;white-space:nowrap}
+    .view-btn{border:1px solid var(--border);color:var(--muted)}
+    .view-btn:hover{border-color:var(--text);color:var(--text)}
     .download-btn{border:1px solid var(--border);color:var(--muted)}
     .download-btn:hover{border-color:var(--accent);color:var(--accent)}
     .tail-btn{border:1px solid rgba(16,185,129,.3);color:var(--accent)}
@@ -161,6 +163,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
         <div class="file-modified">{{.Modified}}</div>
         <div class="actions">
           {{if notDir .IsDir}}
+          <a class="view-btn" href="{{.ViewURL}}">≡ View</a>
           <a class="tail-btn" href="{{.TailURL}}">⊞ Tail</a>
           <a class="download-btn" href="{{.DownloadURL}}">↓ Download</a>
           {{end}}
@@ -216,9 +219,14 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
     .log-line{color:var(--text)}
     .log-line.new{animation:fadeIn .15s ease}
     @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    .log-line.has-match mark{background:#78350f;color:#fde68a;border-radius:2px;padding:0 1px}
+    .log-line.no-match{opacity:.3}
     .empty-msg{color:var(--muted);font-size:.75rem;margin-top:1rem}
     .cursor{display:inline-block;width:7px;height:13px;background:var(--accent);vertical-align:middle;margin-left:2px;animation:blink 1s infinite}
     .statusbar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:.35rem 1.2rem;background:var(--surface);border-top:1px solid var(--border);font-size:.65rem;color:var(--muted)}
+    .search-input{padding:.25rem .6rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.68rem;outline:none;width:160px;transition:border-color .15s}
+    .search-input:focus{border-color:var(--accent)}
+    .match-badge{font-size:.65rem;color:var(--muted);white-space:nowrap;min-width:4rem}
   </style>
 </head>
 <body>
@@ -231,6 +239,8 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
       </div>
     </div>
     <div class="topbar-right">
+      <input class="search-input" id="search" type="text" placeholder="Filter lines...">
+      <span class="match-badge" id="match-badge"></span>
       <div id="status-pill" class="status-pill connected">
         <div class="status-dot"></div>
         <span id="status-text">live</span>
@@ -263,8 +273,12 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
     const statusPill = document.getElementById('status-pill');
     const statusText = document.getElementById('status-text');
     const lineCountEl = document.getElementById('line-count');
+    const matchBadge = document.getElementById('match-badge');
     const viewport = document.getElementById('viewport');
+    const searchEl = document.getElementById('search');
     let lineCount = 0;
+    let allLines = []; // {text, el}
+    let searchQuery = '';
     let es = null;
     let autoScroll = true;
 
@@ -278,14 +292,55 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
       statusText.textContent = connected ? 'live' : 'disconnected';
     }
 
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function highlight(text, q) {
+      const ql = q.toLowerCase(), tl = text.toLowerCase();
+      const parts = []; let pos = 0, idx;
+      while ((idx = tl.indexOf(ql, pos)) !== -1) {
+        parts.push(escHtml(text.slice(pos, idx)));
+        parts.push('<mark>' + escHtml(text.slice(idx, idx + q.length)) + '</mark>');
+        pos = idx + q.length;
+      }
+      parts.push(escHtml(text.slice(pos)));
+      return parts.join('');
+    }
+
+    function styleEl(el, text) {
+      const q = searchQuery;
+      if (!q) {
+        el.className = 'log-line new';
+        el.textContent = text;
+      } else if (text.toLowerCase().includes(q.toLowerCase())) {
+        el.className = 'log-line new has-match';
+        el.innerHTML = highlight(text, q);
+      } else {
+        el.className = 'log-line new no-match';
+        el.textContent = text;
+      }
+    }
+
+    function updateCounter() {
+      if (!searchQuery) {
+        lineCountEl.textContent = lineCount + ' line' + (lineCount !== 1 ? 's' : '');
+        matchBadge.textContent = '';
+      } else {
+        const n = allLines.filter(l => l.text.toLowerCase().includes(searchQuery.toLowerCase())).length;
+        lineCountEl.textContent = lineCount + ' lines';
+        matchBadge.textContent = n ? n + ' match' + (n !== 1 ? 'es' : '') : 'no matches';
+      }
+    }
+
     function appendLine(text) {
       if (lineCount === 0) emptyMsg.style.display = 'none';
-      const div = document.createElement('div');
-      div.className = 'log-line new';
-      div.textContent = text;
-      output.appendChild(div);
+      const el = document.createElement('div');
+      styleEl(el, text);
+      output.appendChild(el);
+      allLines.push({text, el});
       lineCount++;
-      lineCountEl.textContent = lineCount + ' line' + (lineCount !== 1 ? 's' : '');
+      updateCounter();
       if (autoScroll) viewport.scrollTop = viewport.scrollHeight;
     }
 
@@ -303,14 +358,220 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
     function clearAndRestart() {
       if (es) es.close();
       output.innerHTML = '';
+      allLines = [];
       lineCount = 0;
       lineCountEl.textContent = '0 lines';
+      matchBadge.textContent = '';
       emptyMsg.style.display = '';
       autoScroll = true;
       startStream();
     }
 
+    let searchTimer;
+    searchEl.addEventListener('input', e => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        searchQuery = e.target.value.trim();
+        allLines.forEach(({text, el}) => styleEl(el, text));
+        updateCounter();
+        if (autoScroll) {
+          const last = output.querySelector('.log-line.has-match:last-of-type');
+          if (last) last.scrollIntoView({block:'end'});
+        }
+      }, 150);
+    });
+
     startStream();
+  </script>
+</body>
+</html>`))
+
+var viewerTmpl = template.Must(template.New("viewer").Parse(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>view · {{.FileName}}</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0c0c0c;--surface:#141414;--border:#222;--accent:#10b981;--text:#d4d4d8;--muted:#52525b;--danger:#ef4444}
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{height:100%;background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;display:flex;flex-direction:column}
+    .topbar{flex-shrink:0;display:flex;align-items:center;gap:.8rem;padding:.6rem 1.2rem;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
+    .topbar-left{display:flex;align-items:center;gap:.8rem;flex:1;min-width:0}
+    .logo-icon{width:28px;height:28px;background:var(--accent);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.8rem;color:#000;font-weight:700;flex-shrink:0}
+    .file-label{font-size:.65rem;color:var(--muted)}
+    .file-name{font-size:.8rem;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .search-row{display:flex;align-items:center;gap:.4rem;flex-shrink:0}
+    .search-input{padding:.28rem .65rem;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.72rem;outline:none;width:200px;transition:border-color .15s}
+    .search-input:focus{border-color:var(--accent)}
+    .match-info{font-size:.65rem;color:var(--muted);white-space:nowrap;min-width:5rem}
+    .nav-btn{padding:.25rem .5rem;background:transparent;border:1px solid var(--border);border-radius:3px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.72rem;cursor:pointer;transition:all .12s}
+    .nav-btn:hover{border-color:var(--text);color:var(--text)}
+    .filter-btn{padding:.25rem .55rem;background:transparent;border:1px solid var(--border);border-radius:3px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.68rem;cursor:pointer;transition:all .12s}
+    .filter-btn:hover{border-color:var(--accent);color:var(--accent)}
+    .filter-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(16,185,129,.08)}
+    .topbar-right{display:flex;align-items:center;gap:.4rem;flex-shrink:0}
+    .btn{padding:.28rem .7rem;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.68rem;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:.3rem;transition:all .12s}
+    .btn:hover{border-color:var(--text);color:var(--text)}
+    .warn-bar{flex-shrink:0;padding:.4rem 1.2rem;background:rgba(217,119,6,.12);border-bottom:1px solid rgba(217,119,6,.25);font-size:.7rem;color:#fbbf24}
+    .warn-bar a{color:#fbbf24;text-underline-offset:2px}
+    .viewer{flex:1;overflow-y:auto}
+    .viewer::-webkit-scrollbar{width:4px}
+    .viewer::-webkit-scrollbar-track{background:transparent}
+    .viewer::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+    #content{padding:.5rem 0}
+    .line{display:flex;min-height:1.4rem}
+    .line:hover{background:rgba(255,255,255,.02)}
+    .line.has-match{background:rgba(120,53,15,.08)}
+    .line.no-match{opacity:.25}
+    .ln{flex-shrink:0;width:4.5rem;padding:.0 .75rem 0 1rem;text-align:right;color:var(--muted);font-size:.72rem;line-height:1.7;user-select:none}
+    .lt{flex:1;padding-right:1.2rem;font-size:.76rem;line-height:1.7;white-space:pre-wrap;word-break:break-all;color:var(--text)}
+    mark{background:#78350f;color:#fde68a;border-radius:2px;padding:0 1px}
+    mark.active{background:#d97706;color:#000}
+    .statusbar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:.3rem 1.2rem;background:var(--surface);border-top:1px solid var(--border);font-size:.65rem;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="logo-icon">⬡</div>
+      <div style="min-width:0">
+        <div class="file-label">viewing</div>
+        <div class="file-name">{{.FilePath}}</div>
+      </div>
+    </div>
+    <div class="search-row">
+      <input class="search-input" id="search" type="text" placeholder="Search keyword... (Ctrl+F)">
+      <span class="match-info" id="match-info"></span>
+      <button class="nav-btn" onclick="navigate(-1)" title="Previous (Shift+Enter)">↑</button>
+      <button class="nav-btn" onclick="navigate(1)" title="Next (Enter)">↓</button>
+      <button class="filter-btn" id="filter-btn" onclick="toggleFilter()">Filter</button>
+    </div>
+    <div class="topbar-right">
+      <a class="btn" href="{{.BrowseURL}}">← Back</a>
+      {{if .AuthEnabled}}
+      <form method="POST" action="{{.LogoutAction}}" style="margin:0">
+        <button class="btn" type="submit">Sign out</button>
+      </form>
+      {{end}}
+    </div>
+  </div>
+
+  {{if .Truncated}}
+  <div class="warn-bar">⚠ Large file — showing last 5 MB. <a href="{{.DownloadURL}}">Download</a> for full content.</div>
+  {{end}}
+
+  <div class="viewer" id="viewer">
+    <div id="content"></div>
+  </div>
+
+  <div class="statusbar">
+    <span id="line-info">{{.LineCount}} lines</span>
+    <span>{{.FilePath}}</span>
+  </div>
+
+  <script>
+    const rawContent = {{.ContentJSON}};
+    const lines = rawContent.split('\n');
+    if (lines.length && lines[lines.length-1] === '') lines.pop();
+
+    const contentEl = document.getElementById('content');
+    const searchEl  = document.getElementById('search');
+    const matchInfoEl = document.getElementById('match-info');
+    const lineInfoEl  = document.getElementById('line-info');
+    const filterBtnEl = document.getElementById('filter-btn');
+    const viewer = document.getElementById('viewer');
+
+    let query = '', filterMode = false, matchIndices = [], currentIdx = -1;
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function highlightLine(text, q) {
+      const ql = q.toLowerCase(), tl = text.toLowerCase();
+      const parts = []; let pos = 0, idx;
+      while ((idx = tl.indexOf(ql, pos)) !== -1) {
+        parts.push(escHtml(text.slice(pos, idx)));
+        parts.push('<mark>' + escHtml(text.slice(idx, idx + q.length)) + '</mark>');
+        pos = idx + q.length;
+      }
+      parts.push(escHtml(text.slice(pos)));
+      return parts.join('') || '&nbsp;';
+    }
+
+    function render() {
+      matchIndices = [];
+      const parts = [];
+      const q = query;
+
+      for (let i = 0; i < lines.length; i++) {
+        const has = q && lines[i].toLowerCase().includes(q.toLowerCase());
+        if (filterMode && q && !has) continue;
+        if (has) matchIndices.push(i);
+        const cls = !q ? 'line' : has ? 'line has-match' : 'line no-match';
+        const body = has ? highlightLine(lines[i], q) : (escHtml(lines[i]) || '&nbsp;');
+        parts.push('<div class="' + cls + '" data-i="' + i + '"><span class="ln">' + (i+1) + '</span><span class="lt">' + body + '</span></div>');
+      }
+
+      contentEl.innerHTML = parts.join('');
+
+      const n = matchIndices.length;
+      if (!q) {
+        matchInfoEl.textContent = '';
+        lineInfoEl.textContent = lines.length + ' lines';
+      } else {
+        matchInfoEl.textContent = n ? n + ' match' + (n !== 1 ? 'es' : '') : 'no matches';
+        lineInfoEl.textContent = lines.length + ' lines' + (filterMode ? ' · ' + n + ' shown' : '');
+      }
+
+      currentIdx = n > 0 ? 0 : -1;
+      activateCurrent();
+    }
+
+    function activateCurrent() {
+      document.querySelectorAll('mark.active').forEach(m => m.classList.remove('active'));
+      if (currentIdx < 0 || !matchIndices.length) return;
+      const el = contentEl.querySelector('[data-i="' + matchIndices[currentIdx] + '"]');
+      if (!el) return;
+      const m = el.querySelector('mark');
+      if (m) m.classList.add('active');
+      el.scrollIntoView({block:'center', behavior:'smooth'});
+      matchInfoEl.textContent = (currentIdx+1) + ' / ' + matchIndices.length + ' match' + (matchIndices.length !== 1 ? 'es' : '');
+    }
+
+    function navigate(dir) {
+      if (!matchIndices.length) return;
+      currentIdx = (currentIdx + dir + matchIndices.length) % matchIndices.length;
+      activateCurrent();
+    }
+
+    function toggleFilter() {
+      filterMode = !filterMode;
+      filterBtnEl.classList.toggle('active', filterMode);
+      render();
+    }
+
+    let timer;
+    searchEl.addEventListener('input', e => {
+      clearTimeout(timer);
+      timer = setTimeout(() => { query = e.target.value.trim(); render(); }, 150);
+    });
+
+    searchEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); navigate(e.shiftKey ? -1 : 1); }
+      if (e.key === 'Escape') { searchEl.value = ''; query = ''; render(); }
+    });
+
+    document.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault(); searchEl.focus(); searchEl.select();
+      }
+    });
+
+    render();
   </script>
 </body>
 </html>`))

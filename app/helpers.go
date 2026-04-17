@@ -50,6 +50,7 @@ func listDir(dir string, relBase string) ([]EntryView, error) {
 			ev.Size = formatSize(info.Size())
 			ev.DownloadURL = p("/download/" + rel)
 			ev.TailURL = p("/tail/" + rel)
+			ev.ViewURL = p("/view/" + rel)
 		}
 		result = append(result, ev)
 	}
