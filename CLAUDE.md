@@ -6,15 +6,22 @@ LogVault is a lightweight, self-hosted Docker application for browsing, download
 
 ## Repository Layout
 
-```
+```text
 logvault/
 ├── app/
-│   ├── main.go          # Entire backend + embedded HTML/CSS/JS (~857 lines)
-│   └── go.mod           # Go 1.26, zero external deps
-├── Dockerfile           # Multi-stage: golang:1.26-alpine → scratch (~5 MB image)
-├── docker-compose.yml   # Reference deployment with volume/env examples
-├── readme.md            # User-facing docs (features, config, reverse proxy)
-├── CLAUDE.md            # This file
+│   ├── main.go        # Entry point: globals (logsDir, basePath, getEnv, p), main(), route registration
+│   ├── session.go     # In-memory session store (newSession, validSession, deleteSession)
+│   ├── auth.go        # authConfig, requireAuth middleware, loginPageHandler, loginPostHandler, logoutHandler
+│   ├── types.go       # Shared structs: Entry, EntryView, PageData, TailPageData, Crumb
+│   ├── templates.go   # Embedded HTML/CSS/JS templates: loginTmpl, browserTmpl, tailTmpl
+│   ├── helpers.go     # formatSize, listDir, buildCrumbs, parentURL, browseURLFromFilePath
+│   ├── handlers.go    # browseHandler, downloadHandler, healthHandler
+│   ├── tail.go        # tailPageHandler, tailStreamHandler (SSE)
+│   └── go.mod         # Go 1.26, zero external deps
+├── Dockerfile         # Multi-stage: golang:1.26-alpine → scratch (~5 MB image)
+├── docker-compose.yml # Reference deployment with volume/env examples
+├── readme.md          # User-facing docs (features, config, reverse proxy)
+├── CLAUDE.md          # This file
 └── .gitignore
 ```
 
@@ -27,7 +34,7 @@ logvault/
 ### URL Routes
 
 | Route | Handler | Auth |
-|---|---|---|
+| --- | --- | --- |
 | `/` | redirect → `/browse/` | yes |
 | `/browse/<path>` | directory listing | yes |
 | `/download/<path>` | file streaming | yes |
@@ -39,22 +46,18 @@ logvault/
 
 BASE_PATH is prepended to all routes via the `p()` helper.
 
-### Key Sections in main.go
+### File Responsibilities
 
-| Lines | Responsibility |
-|---|---|
-| 1–38 | Imports, global config vars, constants |
-| 39–77 | In-memory session store (mutex, 8h TTL, crypto/rand tokens) |
-| 79–87 | `requireAuth` middleware |
-| 100–410 | Embedded HTML templates (`loginTmpl`, `browserTmpl`, `tailTmpl`) |
-| 410–465 | Template helpers: `formatSize`, `buildCrumbs`, `parentURL` |
-| 466–502 | `listDir` — directory walker with sort |
-| 536–620 | `/login` and `/logout` handlers |
-| 622–657 | `/browse/` handler |
-| 659–690 | `/download/` handler |
-| 692–789 | `/tail/` page + `/tail-stream/` SSE handler |
-| 790–822 | `/health` handler |
-| 823–857 | `main()` — env config, route registration |
+| File | What lives there |
+| --- | --- |
+| `main.go` | `logsDir`, `basePath`, `getEnv`, `p`, `main()`, route registration |
+| `session.go` | `session` struct, `sessions` map, `newSession`, `validSession`, `deleteSession` |
+| `auth.go` | `authConfig`, `requireAuth`, `loginPageHandler`, `loginPostHandler`, `logoutHandler` |
+| `types.go` | `Entry`, `EntryView`, `PageData`, `TailPageData`, `Crumb` |
+| `templates.go` | `loginTmpl`, `browserTmpl`, `tailTmpl`, `funcMap` |
+| `helpers.go` | `formatSize`, `listDir`, `buildCrumbs`, `parentURL`, `browseURLFromFilePath` |
+| `handlers.go` | `browseHandler`, `downloadHandler`, `healthHandler` |
+| `tail.go` | `tailPageHandler`, `tailStreamHandler` (SSE) |
 
 ### Security Constraints
 
@@ -66,7 +69,7 @@ BASE_PATH is prepended to all routes via the `p()` helper.
 ## Configuration (Environment Variables)
 
 | Variable | Default | Effect |
-|---|---|---|
+| --- | --- | --- |
 | `PORT` | `8080` | Listen port |
 | `BASE_PATH` | `""` | URL prefix for reverse proxy (e.g. `/logvault`). No trailing slash. |
 | `AUTH_USER` | `""` | Login username. Leave blank to disable auth entirely. |
@@ -86,6 +89,7 @@ docker compose up -d --build
 ```
 
 Local dev (no Docker):
+
 ```bash
 cd app
 go run main.go
@@ -112,6 +116,7 @@ go run main.go
 ### Commit Convention
 
 Commit after every meaningful fix or feature addition:
+
 ```bash
 git add <files>
 git commit -m "<type>: <short description>"
