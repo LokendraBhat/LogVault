@@ -79,7 +79,7 @@ func main() {
 			loginPageHandler(w, r)
 		}
 	})
-	mux.HandleFunc(p("/logout"), requireAuth(logoutHandler))
+	mux.HandleFunc(p("/logout"), logoutHandler)
 	mux.HandleFunc(p("/browse/"), requireAuth(browseHandler))
 	mux.HandleFunc(p("/download/"), requireAuth(downloadHandler))
 	mux.HandleFunc(p("/tail/"), requireAuth(tailPageHandler))
