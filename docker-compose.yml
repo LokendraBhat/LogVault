@@ -5,7 +5,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      ## Format should be /app/logs/<service or app name>
+      ## Format should be <host-logdir-path>:/app/logs/<service-or-appname>
       - /var/log:/app/logs/system:ro
     environment:
       # ── Optional: Base path for reverse proxy subpath ─────────────────

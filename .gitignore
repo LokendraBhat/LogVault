@@ -21,5 +21,6 @@ logs/
 # Git
 .git
 
+# Other
 app_bk
-docker-compose.yml
+CLAUDE.md
