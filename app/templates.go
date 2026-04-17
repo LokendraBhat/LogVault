@@ -99,7 +99,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     .download-btn{border:1px solid var(--border);color:var(--muted)}
     .download-btn:hover{border-color:var(--accent);color:var(--accent)}
     .tail-btn{border:1px solid rgba(16,185,129,.3);color:var(--accent)}
-    .tail-btn:hover{background:rgba(16,185,129,.08)}
+    .tail-btn:hover{background:rgba(16,185,129,.15);border-color:var(--accent)}
     .empty-state{text-align:center;padding:4rem 2rem;color:var(--muted)}
     .empty-state h3{font-size:1rem;color:var(--text);margin-bottom:.4rem}
     .empty-state p{font-size:.75rem}
@@ -207,7 +207,7 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
     .btn{padding:.28rem .7rem;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.68rem;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:.3rem;transition:all .12s}
     .btn:hover{border-color:var(--text);color:var(--text)}
     .btn.accent{border-color:rgba(16,185,129,.35);color:var(--accent)}
-    .btn.accent:hover{background:rgba(16,185,129,.07)}
+    .btn.accent:hover{background:rgba(16,185,129,.15);border-color:var(--accent)}
     .log-viewport{flex:1;overflow-y:auto;padding:.75rem 1.2rem}
     .log-viewport::-webkit-scrollbar{width:4px}
     .log-viewport::-webkit-scrollbar-track{background:transparent}
