@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
@@ -36,11 +37,12 @@ func tailPageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	streamURL := p("/tail-stream/" + name)
+	streamURLJSON, _ := json.Marshal(streamURL)
 
 	data := TailPageData{
 		FileName:     filepath.Base(name),
 		FilePath:     "/app/logs/" + name,
-		StreamURL:    template.JS(`"` + streamURL + `"`),
+		StreamURL:    template.JS(streamURLJSON),
 		BrowseURL:    browseURLFromFilePath(name),
 		AuthEnabled:  auth.enabled,
 		LogoutAction: p("/logout"),
@@ -102,6 +104,8 @@ func tailStreamHandler(w http.ResponseWriter, r *http.Request) {
 				line, err := reader.ReadString('\n')
 				if len(line) > 0 {
 					text := strings.TrimRight(line, "\r\n")
+					// Replace embedded newlines so they don't break SSE framing.
+					text = strings.ReplaceAll(text, "\n", " ")
 					fmt.Fprintf(w, "data: %s\n\n", text)
 					flusher.Flush()
 				}
