@@ -86,6 +86,10 @@ func loginPostHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.NotFound(w, r)
+		return
+	}
 	deleteSession(sessionToken(r))
 	cookiePath := "/"
 	if basePath != "" {
