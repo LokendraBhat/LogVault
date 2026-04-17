@@ -48,6 +48,7 @@ func listDir(dir string, relBase string) ([]EntryView, error) {
 			ev.BrowseURL = p("/browse/" + rel)
 		} else {
 			ev.Size = formatSize(info.Size())
+			ev.SizeBytes = info.Size()
 			ev.DownloadURL = p("/download/" + rel)
 			ev.TailURL = p("/tail/" + rel)
 			ev.ViewURL = p("/view/" + rel)
