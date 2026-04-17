@@ -21,4 +21,6 @@ logs/
 # Git
 .git
 
+# Other
 app_bk
+CLAUDE.md
