@@ -88,7 +88,7 @@ func main() {
 	mux.HandleFunc(p("/health"), healthHandler)
 
 	fmt.Printf("LogVault running on :%s — serving %s\n", port, logsDir)
-	if err := http.ListenAndServe(":"+port, secureHeaders(mux)); err != nil {
+	if err := http.ListenAndServe(":"+port, mux); err != nil {
 		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 		os.Exit(1)
 	}
