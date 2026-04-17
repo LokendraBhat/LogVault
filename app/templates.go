@@ -302,6 +302,7 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
 
   <script>
     const streamURL = {{.StreamURL}};
+    const MAX_LINES = 2000;
     const output = document.getElementById('log-output');
     const emptyMsg = document.getElementById('empty-msg');
     const statusPill = document.getElementById('status-pill');
@@ -311,10 +312,13 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
     const viewport = document.getElementById('viewport');
     const searchEl = document.getElementById('search');
     let lineCount = 0;
-    let allLines = []; // {text, el}
+    let allLines = [];   // capped at MAX_LINES, each {text, el}
+    let matchCount = 0;  // incremental — never scan allLines on append
     let searchQuery = '';
     let es = null;
     let autoScroll = true;
+    let lineBuffer = []; // incoming lines waiting for next animation frame
+    let flushPending = false;
 
     viewport.addEventListener('scroll', () => {
       const atBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 40;
@@ -357,25 +361,54 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
     }
 
     function updateCounter() {
+      const atCap = allLines.length >= MAX_LINES;
+      lineCountEl.textContent = lineCount + ' lines' + (atCap ? ' (last ' + MAX_LINES + ')' : '');
       if (!searchQuery) {
-        lineCountEl.textContent = lineCount + ' line' + (lineCount !== 1 ? 's' : '');
         matchBadge.textContent = '';
       } else {
-        const n = allLines.filter(l => l.text.toLowerCase().includes(searchQuery.toLowerCase())).length;
-        lineCountEl.textContent = lineCount + ' lines';
-        matchBadge.textContent = n ? n + ' match' + (n !== 1 ? 'es' : '') : 'no matches';
+        matchBadge.textContent = matchCount ? matchCount + ' match' + (matchCount !== 1 ? 'es' : '') : 'no matches';
       }
     }
 
-    function appendLine(text) {
-      if (lineCount === 0) emptyMsg.style.display = 'none';
-      const el = document.createElement('div');
-      styleEl(el, text);
-      output.appendChild(el);
-      allLines.push({text, el});
-      lineCount++;
+    // Flush all buffered lines in one animation frame:
+    // - builds a DocumentFragment (single reflow)
+    // - evicts oldest lines when over MAX_LINES
+    // - scrolls once at the end
+    function flushLines() {
+      flushPending = false;
+      if (!lineBuffer.length) return;
+
+      const frag = document.createDocumentFragment();
+      const toRemove = [];
+
+      lineBuffer.forEach(text => {
+        if (lineCount === 0) emptyMsg.style.display = 'none';
+        const el = document.createElement('div');
+        styleEl(el, text);
+        if (searchQuery && text.toLowerCase().includes(searchQuery.toLowerCase())) matchCount++;
+        frag.appendChild(el);
+        allLines.push({text, el});
+        lineCount++;
+        if (allLines.length > MAX_LINES) {
+          const old = allLines.shift();
+          if (searchQuery && old.text.toLowerCase().includes(searchQuery.toLowerCase())) matchCount--;
+          toRemove.push(old.el);
+        }
+      });
+      lineBuffer = [];
+
+      toRemove.forEach(el => output.removeChild(el));
+      output.appendChild(frag);
       updateCounter();
       if (autoScroll) viewport.scrollTop = viewport.scrollHeight;
+    }
+
+    function appendLine(text) {
+      lineBuffer.push(text);
+      if (!flushPending) {
+        flushPending = true;
+        requestAnimationFrame(flushLines);
+      }
     }
 
     function startStream() {
@@ -391,9 +424,9 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
 
     function clearAndRestart() {
       if (es) es.close();
+      lineBuffer = []; flushPending = false;
       output.innerHTML = '';
-      allLines = [];
-      lineCount = 0;
+      allLines = []; lineCount = 0; matchCount = 0;
       lineCountEl.textContent = '0 lines';
       matchBadge.textContent = '';
       emptyMsg.style.display = '';
@@ -406,7 +439,11 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => {
         searchQuery = e.target.value.trim();
-        allLines.forEach(({text, el}) => styleEl(el, text));
+        matchCount = 0;
+        allLines.forEach(({text, el}) => {
+          styleEl(el, text);
+          if (searchQuery && text.toLowerCase().includes(searchQuery.toLowerCase())) matchCount++;
+        });
         updateCounter();
         if (autoScroll) {
           const last = output.querySelector('.log-line.has-match:last-of-type');
