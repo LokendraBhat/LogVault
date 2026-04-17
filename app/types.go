@@ -25,6 +25,7 @@ type EntryView struct {
 	Name        string
 	IsDir       bool
 	Size        string
+	SizeBytes   int64
 	Modified    string
 	BrowseURL   string
 	DownloadURL string

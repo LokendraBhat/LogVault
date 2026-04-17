@@ -102,6 +102,10 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     .download-btn:hover{border-color:var(--accent);color:var(--accent)}
     .tail-btn{border:1px solid rgba(16,185,129,.3);color:var(--accent)}
     .tail-btn:hover{background:rgba(16,185,129,.15);border-color:var(--accent)}
+    .th-sort{cursor:pointer;user-select:none;display:flex;align-items:center;gap:.3rem;transition:color .12s}
+    .th-sort:hover{color:var(--text)}
+    .sort-icon{font-size:.6rem;opacity:.45;transition:opacity .12s}
+    .th-sort.active .sort-icon{opacity:1;color:var(--accent)}
     .empty-state{text-align:center;padding:4rem 2rem;color:var(--muted)}
     .empty-state h3{font-size:1rem;color:var(--text);margin-bottom:.4rem}
     .empty-state p{font-size:.75rem}
@@ -136,12 +140,15 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     </div>
 
     {{if .Entries}}
-    <div class="log-table">
+    <div class="log-table" id="tbl">
       <div class="table-header">
-        <div>Name</div><div>Size</div><div>Modified</div><div>Actions</div>
+        <div class="th-sort active" id="th-name" onclick="sortBy('name')">Name<span class="sort-icon" id="si-name">▲</span></div>
+        <div class="th-sort" id="th-size" onclick="sortBy('size')">Size<span class="sort-icon" id="si-size">⇅</span></div>
+        <div class="th-sort" id="th-modified" onclick="sortBy('modified')">Modified<span class="sort-icon" id="si-modified">⇅</span></div>
+        <div>Actions</div>
       </div>
       {{if .SubPath}}
-      <div class="log-row">
+      <div class="log-row" data-parent="1">
         <div class="entry-name">
           <div class="entry-icon">↑</div>
           <a class="entry-link up-link" href="{{.ParentURL}}">..</a>
@@ -150,7 +157,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
       </div>
       {{end}}
       {{range .Entries}}
-      <div class="log-row{{if .IsDir}} is-dir{{end}}">
+      <div class="log-row{{if .IsDir}} is-dir{{end}}" data-name="{{.Name}}" data-size="{{.SizeBytes}}" data-modified="{{.Modified}}" data-isdir="{{if .IsDir}}1{{else}}0{{end}}">
         <div class="entry-name">
           <div class="entry-icon">{{if .IsDir}}▶{{else}}≡{{end}}</div>
           {{if .IsDir}}
@@ -180,6 +187,33 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
 
     <div class="footer">LogVault · Minimal Log Server · by Lokendra Bhat</div>
   </div>
+  <script>
+    var sortCol = 'name', sortDir = 1;
+    function sortBy(col) {
+      if (sortCol === col) sortDir *= -1; else { sortCol = col; sortDir = 1; }
+      ['name','size','modified'].forEach(function(c) {
+        var th = document.getElementById('th-' + c);
+        var si = document.getElementById('si-' + c);
+        if (!th || !si) return;
+        var active = c === sortCol;
+        th.classList.toggle('active', active);
+        si.textContent = active ? (sortDir === 1 ? '▲' : '▼') : '⇅';
+      });
+      var tbl = document.getElementById('tbl');
+      if (!tbl) return;
+      var parent = tbl.querySelector('[data-parent]');
+      var rows = Array.from(tbl.querySelectorAll('.log-row:not([data-parent])'));
+      rows.sort(function(a, b) {
+        var aDir = a.dataset.isdir === '1', bDir = b.dataset.isdir === '1';
+        if (aDir !== bDir) return aDir ? -1 : 1;
+        if (sortCol === 'size') return sortDir * (parseInt(a.dataset.size||0) - parseInt(b.dataset.size||0));
+        if (sortCol === 'modified') return sortDir * a.dataset.modified.localeCompare(b.dataset.modified);
+        return sortDir * a.dataset.name.toLowerCase().localeCompare(b.dataset.name.toLowerCase());
+      });
+      if (parent) tbl.insertBefore(parent, tbl.children[1]);
+      rows.forEach(function(r) { tbl.appendChild(r); });
+    }
+  </script>
 </body>
 </html>`))
 
