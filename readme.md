@@ -1,6 +1,6 @@
 # LogVault ⬡
 
-> Open-source Docker app to browse, view, tail, and download server logs from `/app/logs` via a clean web UI. Supports folder navigation, live tail streaming, full file viewer with keyword search, and optional session-based auth. Built in Go on a `scratch` base image (~8.62 MB).
+> Open-source Docker app to browse, view, tail, and download server logs from `/app/logs` via a clean web UI. Supports folder navigation, live tail streaming, full file viewer with keyword search, and optional session-based auth. Built in Go on a `scratch` base image (~9.21 MB).
 
 ---
 
@@ -17,7 +17,7 @@
 - 🗂️ Mount multiple services under `/app/logs/<service>`
 - 🌐 `BASE_PATH` support for reverse proxy subpath deployments
 - 🖼️ Custom logo/favicon across every page via `LOGO_URL` or a mounted `LOGO_PATH` file
-- 🐳 Final Docker image built on `scratch` — ~8.62 MB, zero OS overhead
+- 🐳 Final Docker image built on `scratch` — ~9.21 MB, zero OS overhead
 - 🛡️ Path traversal blocked, logs mounted read-only, `HttpOnly` session cookies
 - 💚 `/health` endpoint always public for container orchestrators
 
@@ -28,7 +28,7 @@
 ```
 golang:alpine  ── build stage (compiles static binary, CGO_ENABLED=0)
      │
-     └── scratch ── runtime stage (binary + CA certs only, ~8.62 MB)
+     └── scratch ── runtime stage (binary + CA certs only, ~9.21 MB)
 ```
 
 ---
@@ -185,7 +185,7 @@ This makes each service appear as a top-level folder in the browser.
 | Stage | Base | Approx. Size |
 | --- | --- | --- |
 | Build | `golang:alpine` | ~350 MB |
-| **Final** | **`scratch`** | **~8.62 MB** |
+| **Final** | **`scratch`** | **~9.21 MB** |
 
 ---
 
