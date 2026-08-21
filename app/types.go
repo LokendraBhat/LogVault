@@ -44,6 +44,7 @@ type ViewPageData struct {
 	BrowseURL    string
 	AuthEnabled  bool
 	LogoutAction string
+	LogoURL      string
 }
 
 // PageData is the template data for the file browser page.
@@ -57,6 +58,7 @@ type PageData struct {
 	Port         string
 	AuthEnabled  bool
 	LogoutAction string
+	LogoURL      string
 }
 
 // TailPageData is the template data for the tail viewer page.
@@ -67,4 +69,5 @@ type TailPageData struct {
 	BrowseURL    string
 	AuthEnabled  bool
 	LogoutAction string
+	LogoURL      string
 }

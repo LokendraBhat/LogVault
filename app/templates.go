@@ -10,7 +10,7 @@ var loginTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LogVault · Sign In</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>">
+  <link rel="icon" href="{{if .LogoURL}}{{.LogoURL}}{{else}}data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>{{end}}">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root{--bg:#0c0c0c;--surface:#161616;--border:#242424;--accent:#10b981;--text:#d4d4d8;--muted:#52525b;--danger:#ef4444}
@@ -19,6 +19,7 @@ var loginTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
     .card{width:100%;max-width:380px;margin:1rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:2.2rem}
     .logo-row{display:flex;align-items:center;gap:.7rem;margin-bottom:.3rem}
     .logo-icon{width:34px;height:34px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.95rem;color:#000;font-weight:700}
+    img.logo-icon{background:none;object-fit:contain}
     h1{font-weight:700;font-size:1.4rem;color:var(--text)}
     .tagline{font-size:.7rem;color:var(--muted);margin-bottom:1.8rem}
     label{display:block;font-size:.68rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.35rem}
@@ -32,9 +33,10 @@ var loginTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
 </head>
 <body>
   <div class="card">
-    <div class="logo-row"><div class="logo-icon">⬡</div><h1>LogVault</h1></div>
-    <p class="tagline">sign in to continue</p>
+    <div class="logo-row">{{if .LogoURL}}<img class="logo-icon" src="{{.LogoURL}}" alt="LogVault logo">{{else}}<div class="logo-icon">⬡</div>{{end}}<h1>LogVault</h1></div>
+    {{if not .Locked}}<p class="tagline">sign in to continue</p>{{end}}
     {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+    {{if not .Locked}}
     <form method="POST" action="{{.LoginAction}}">
       <label>Username</label>
       <input type="text" name="username" autocomplete="username" autofocus placeholder="username">
@@ -42,29 +44,30 @@ var loginTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
       <input type="password" name="password" autocomplete="current-password" placeholder="password">
       <button type="submit">Sign In</button>
     </form>
-    <p class="hint">session expires after 8 hours</p>
+    <p class="hint">session expires after {{.SessionTTL}}</p>
+    {{end}}
   </div>
 </body>
 </html>`))
 
-var funcMap = template.FuncMap{"notDir": func(b bool) bool { return !b }}
-
-var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!DOCTYPE html>
+var browserTmpl = template.Must(template.New("browser").Parse(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LogVault{{if .SubPath}} · /{{.SubPath}}{{end}}</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>">
+  <link rel="icon" href="{{if .LogoURL}}{{.LogoURL}}{{else}}data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>{{end}}">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg:#0c0c0c;--surface:#161616;--border:#242424;--accent:#10b981;--text:#d4d4d8;--muted:#52525b;--folder:#d97706;--danger:#ef4444}
+    :root{--bg:#0c0c0c;--surface:#161616;--border:#242424;--accent:#10b981;--blue:#3b82f6;--text:#d4d4d8;--muted:#52525b;--folder:#d97706;--danger:#ef4444}
     *{margin:0;padding:0;box-sizing:border-box}
     body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;min-height:100vh}
     .container{max-width:960px;margin:0 auto;padding:2rem 1.5rem}
     .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.75rem}
-    .logo-row{display:flex;align-items:center;gap:.7rem}
+    .logo-row{display:flex;align-items:center;gap:.7rem;text-decoration:none;color:inherit;transition:opacity .15s}
+    .logo-row:hover{opacity:.8}
     .logo-icon{width:32px;height:32px;background:var(--accent);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:.88rem;color:#000;font-weight:700}
+    img.logo-icon{background:none;object-fit:contain}
     h1{font-weight:700;font-size:1.3rem;color:var(--text)}
     .logout-btn{padding:.35rem .8rem;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.68rem;cursor:pointer;transition:all .15s}
     .logout-btn:hover{border-color:var(--danger);color:var(--danger)}
@@ -78,13 +81,15 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     .status-bar span{color:var(--text)}
     .tag{display:inline-block;padding:.1rem .4rem;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:3px;color:var(--accent);font-size:.63rem}
     .log-table{background:var(--surface);border:1px solid var(--border);border-radius:7px;overflow:hidden}
-    .table-header{display:grid;grid-template-columns:1fr 90px 150px auto;padding:.55rem 1rem;border-bottom:1px solid var(--border);font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
-    .log-row{display:grid;grid-template-columns:1fr 90px 150px auto;padding:.75rem 1rem;border-bottom:1px solid var(--border);align-items:center;transition:background .12s;position:relative}
+    .table-header{display:grid;grid-template-columns:1fr 90px 150px 235px;padding:.55rem 1rem;border-bottom:1px solid var(--border);font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+    .log-row{display:grid;grid-template-columns:1fr 90px 150px 235px;padding:.75rem 1rem;border-bottom:1px solid var(--border);align-items:center;transition:background .12s;position:relative;text-decoration:none;color:inherit}
     .log-row:last-child{border-bottom:none}
     .log-row:hover{background:rgba(255,255,255,.02)}
     .log-row::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent);opacity:0;transition:opacity .12s}
     .log-row:hover::before{opacity:.6}
+    a.log-row{cursor:pointer}
     .log-row.is-dir::before{background:var(--folder)}
+    .log-row.is-dir:hover .dir-link{color:#fbbf24}
     .entry-name{display:flex;align-items:center;gap:.55rem;font-size:.8rem;overflow:hidden}
     .entry-icon{flex-shrink:0;font-size:.8rem;width:20px;text-align:center;color:var(--muted)}
     .entry-link{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none;color:inherit;transition:color .12s}
@@ -96,8 +101,8 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     .file-modified{font-size:.7rem;color:var(--muted)}
     .actions{display:flex;align-items:center;gap:.4rem}
     .download-btn,.tail-btn,.view-btn{display:inline-flex;align-items:center;gap:.3rem;padding:.28rem .65rem;background:transparent;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.67rem;text-decoration:none;transition:all .12s;white-space:nowrap}
-    .view-btn{border:1px solid var(--border);color:var(--muted)}
-    .view-btn:hover{border-color:var(--text);color:var(--text)}
+    .view-btn{border:1px solid rgba(59,130,246,.35);color:var(--blue)}
+    .view-btn:hover{background:rgba(59,130,246,.15);border-color:var(--blue)}
     .download-btn{border:1px solid var(--border);color:var(--muted)}
     .download-btn:hover{border-color:var(--accent);color:var(--accent)}
     .tail-btn{border:1px solid rgba(16,185,129,.3);color:var(--accent)}
@@ -116,7 +121,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
 <body>
   <div class="container">
     <div class="topbar">
-      <div class="logo-row"><div class="logo-icon">⬡</div><h1>LogVault</h1></div>
+      <a class="logo-row" href="{{.BrowseRoot}}">{{if .LogoURL}}<img class="logo-icon" src="{{.LogoURL}}" alt="LogVault logo">{{else}}<div class="logo-icon">⬡</div>{{end}}<h1>LogVault</h1></a>
       {{if .AuthEnabled}}
       <form method="POST" action="{{.LogoutAction}}" style="margin:0">
         <button class="logout-btn" type="submit">Sign out</button>
@@ -148,34 +153,40 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
         <div>Actions</div>
       </div>
       {{if .SubPath}}
-      <div class="log-row" data-parent="1">
+      <a class="log-row" href="{{.ParentURL}}" data-parent="1">
         <div class="entry-name">
           <div class="entry-icon">↑</div>
-          <a class="entry-link up-link" href="{{.ParentURL}}">..</a>
+          <span class="entry-link up-link">..</span>
         </div>
         <div></div><div></div><div></div>
-      </div>
+      </a>
       {{end}}
       {{range .Entries}}
-      <div class="log-row{{if .IsDir}} is-dir{{end}}" data-name="{{.Name}}" data-size="{{.SizeBytes}}" data-modified="{{.Modified}}" data-isdir="{{if .IsDir}}1{{else}}0{{end}}">
+      {{if .IsDir}}
+      <a class="log-row is-dir" href="{{.BrowseURL}}" data-name="{{.Name}}" data-size="{{.SizeBytes}}" data-modified="{{.Modified}}" data-isdir="1">
         <div class="entry-name">
-          <div class="entry-icon">{{if .IsDir}}▶{{else}}≡{{end}}</div>
-          {{if .IsDir}}
-            <a class="entry-link dir-link" href="{{.BrowseURL}}">{{.Name}}</a>
-          {{else}}
-            <span class="entry-link" style="cursor:default">{{.Name}}</span>
-          {{end}}
+          <div class="entry-icon">▶</div>
+          <span class="entry-link dir-link">{{.Name}}</span>
         </div>
-        <div class="file-size">{{if notDir .IsDir}}{{.Size}}{{else}}—{{end}}</div>
+        <div class="file-size">—</div>
+        <div class="file-modified">{{.Modified}}</div>
+        <div class="actions"></div>
+      </a>
+      {{else}}
+      <div class="log-row" data-name="{{.Name}}" data-size="{{.SizeBytes}}" data-modified="{{.Modified}}" data-isdir="0">
+        <div class="entry-name">
+          <div class="entry-icon">≡</div>
+          <span class="entry-link" style="cursor:default">{{.Name}}</span>
+        </div>
+        <div class="file-size">{{.Size}}</div>
         <div class="file-modified">{{.Modified}}</div>
         <div class="actions">
-          {{if notDir .IsDir}}
           <a class="view-btn" href="{{.ViewURL}}">≡ View</a>
           <a class="tail-btn" href="{{.TailURL}}">⊞ Tail</a>
           <a class="download-btn" href="{{.DownloadURL}}">↓ Download</a>
-          {{end}}
         </div>
       </div>
+      {{end}}
       {{end}}
     </div>
     {{else}}
@@ -185,7 +196,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     </div>
     {{end}}
 
-    <div class="footer">LogVault · Minimal Log Server · by Lokendra Bhat</div>
+    <div class="footer"><a href="https://github.com/lokendrabhat/logvault" target="_blank" rel="noopener noreferrer"><strong>LogVault</strong></a> · Minimal Log Server</div>
   </div>
   <script>
     var sortCol = 'name', sortDir = 1;
@@ -223,7 +234,7 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>tail · {{.FileName}}</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>">
+  <link rel="icon" href="{{if .LogoURL}}{{.LogoURL}}{{else}}data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>{{end}}">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root{--bg:#0c0c0c;--surface:#141414;--border:#222;--accent:#10b981;--text:#d4d4d8;--muted:#52525b;--danger:#ef4444}
@@ -232,6 +243,7 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
     .topbar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:.6rem 1.2rem;background:var(--surface);border-bottom:1px solid var(--border)}
     .topbar-left{display:flex;align-items:center;gap:.8rem}
     .logo-icon{width:28px;height:28px;background:var(--accent);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.8rem;color:#000;font-weight:700;flex-shrink:0}
+    img.logo-icon{background:none;object-fit:contain}
     .file-label{font-size:.65rem;color:var(--muted)}
     .file-name{font-size:.8rem;color:var(--text);font-weight:600}
     .topbar-right{display:flex;align-items:center;gap:.5rem}
@@ -266,7 +278,7 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
 <body>
   <div class="topbar">
     <div class="topbar-left">
-      <div class="logo-icon">⬡</div>
+      {{if .LogoURL}}<img class="logo-icon" src="{{.LogoURL}}" alt="LogVault logo">{{else}}<div class="logo-icon">⬡</div>{{end}}
       <div>
         <div class="file-label">tailing</div>
         <div class="file-name">{{.FilePath}}</div>
@@ -302,6 +314,7 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
 
   <script>
     const streamURL = {{.StreamURL}};
+    const MAX_LINES = 2000;
     const output = document.getElementById('log-output');
     const emptyMsg = document.getElementById('empty-msg');
     const statusPill = document.getElementById('status-pill');
@@ -311,10 +324,13 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
     const viewport = document.getElementById('viewport');
     const searchEl = document.getElementById('search');
     let lineCount = 0;
-    let allLines = []; // {text, el}
+    let allLines = [];   // capped at MAX_LINES, each {text, el}
+    let matchCount = 0;  // incremental — never scan allLines on append
     let searchQuery = '';
     let es = null;
     let autoScroll = true;
+    let lineBuffer = []; // incoming lines waiting for next animation frame
+    let flushPending = false;
 
     viewport.addEventListener('scroll', () => {
       const atBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 40;
@@ -357,25 +373,54 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
     }
 
     function updateCounter() {
+      const atCap = allLines.length >= MAX_LINES;
+      lineCountEl.textContent = lineCount + ' lines' + (atCap ? ' (last ' + MAX_LINES + ')' : '');
       if (!searchQuery) {
-        lineCountEl.textContent = lineCount + ' line' + (lineCount !== 1 ? 's' : '');
         matchBadge.textContent = '';
       } else {
-        const n = allLines.filter(l => l.text.toLowerCase().includes(searchQuery.toLowerCase())).length;
-        lineCountEl.textContent = lineCount + ' lines';
-        matchBadge.textContent = n ? n + ' match' + (n !== 1 ? 'es' : '') : 'no matches';
+        matchBadge.textContent = matchCount ? matchCount + ' match' + (matchCount !== 1 ? 'es' : '') : 'no matches';
       }
     }
 
-    function appendLine(text) {
-      if (lineCount === 0) emptyMsg.style.display = 'none';
-      const el = document.createElement('div');
-      styleEl(el, text);
-      output.appendChild(el);
-      allLines.push({text, el});
-      lineCount++;
+    // Flush all buffered lines in one animation frame:
+    // - builds a DocumentFragment (single reflow)
+    // - evicts oldest lines when over MAX_LINES
+    // - scrolls once at the end
+    function flushLines() {
+      flushPending = false;
+      if (!lineBuffer.length) return;
+
+      const frag = document.createDocumentFragment();
+      const toRemove = [];
+
+      lineBuffer.forEach(text => {
+        if (lineCount === 0) emptyMsg.style.display = 'none';
+        const el = document.createElement('div');
+        styleEl(el, text);
+        if (searchQuery && text.toLowerCase().includes(searchQuery.toLowerCase())) matchCount++;
+        frag.appendChild(el);
+        allLines.push({text, el});
+        lineCount++;
+        if (allLines.length > MAX_LINES) {
+          const old = allLines.shift();
+          if (searchQuery && old.text.toLowerCase().includes(searchQuery.toLowerCase())) matchCount--;
+          toRemove.push(old.el);
+        }
+      });
+      lineBuffer = [];
+
+      toRemove.forEach(el => output.removeChild(el));
+      output.appendChild(frag);
       updateCounter();
       if (autoScroll) viewport.scrollTop = viewport.scrollHeight;
+    }
+
+    function appendLine(text) {
+      lineBuffer.push(text);
+      if (!flushPending) {
+        flushPending = true;
+        requestAnimationFrame(flushLines);
+      }
     }
 
     function startStream() {
@@ -391,9 +436,9 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
 
     function clearAndRestart() {
       if (es) es.close();
+      lineBuffer = []; flushPending = false;
       output.innerHTML = '';
-      allLines = [];
-      lineCount = 0;
+      allLines = []; lineCount = 0; matchCount = 0;
       lineCountEl.textContent = '0 lines';
       matchBadge.textContent = '';
       emptyMsg.style.display = '';
@@ -406,7 +451,11 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => {
         searchQuery = e.target.value.trim();
-        allLines.forEach(({text, el}) => styleEl(el, text));
+        matchCount = 0;
+        allLines.forEach(({text, el}) => {
+          styleEl(el, text);
+          if (searchQuery && text.toLowerCase().includes(searchQuery.toLowerCase())) matchCount++;
+        });
         updateCounter();
         if (autoScroll) {
           const last = output.querySelector('.log-line.has-match:last-of-type');
@@ -426,7 +475,7 @@ var viewerTmpl = template.Must(template.New("viewer").Parse(`<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>view · {{.FileName}}</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>">
+  <link rel="icon" href="{{if .LogoURL}}{{.LogoURL}}{{else}}data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>{{end}}">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root{--bg:#0c0c0c;--surface:#141414;--border:#222;--accent:#10b981;--text:#d4d4d8;--muted:#52525b;--danger:#ef4444}
@@ -435,6 +484,7 @@ var viewerTmpl = template.Must(template.New("viewer").Parse(`<!DOCTYPE html>
     .topbar{flex-shrink:0;display:flex;align-items:center;gap:.8rem;padding:.6rem 1.2rem;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
     .topbar-left{display:flex;align-items:center;gap:.8rem;flex:1;min-width:0}
     .logo-icon{width:28px;height:28px;background:var(--accent);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.8rem;color:#000;font-weight:700;flex-shrink:0}
+    img.logo-icon{background:none;object-fit:contain}
     .file-label{font-size:.65rem;color:var(--muted)}
     .file-name{font-size:.8rem;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .search-row{display:flex;align-items:center;gap:.4rem;flex-shrink:0}
@@ -470,7 +520,7 @@ var viewerTmpl = template.Must(template.New("viewer").Parse(`<!DOCTYPE html>
 <body>
   <div class="topbar">
     <div class="topbar-left">
-      <div class="logo-icon">⬡</div>
+      {{if .LogoURL}}<img class="logo-icon" src="{{.LogoURL}}" alt="LogVault logo">{{else}}<div class="logo-icon">⬡</div>{{end}}
       <div style="min-width:0">
         <div class="file-label">viewing</div>
         <div class="file-name">{{.FilePath}}</div>

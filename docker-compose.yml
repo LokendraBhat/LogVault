@@ -7,6 +7,8 @@ services:
     volumes:
       ## Format should be <host-logdir-path>:/app/logs/<service-or-appname>
       - /var/log:/app/logs/system:ro
+      ## Optional: mount a local logo file for LOGO_PATH below
+      - ./app/logo.png:/app/logo.png:ro
     environment:
       # ── Optional: Base path for reverse proxy subpath ─────────────────
       # Set this if serving under a subpath e.g. https://host/logvault/
@@ -20,10 +22,25 @@ services:
 
       # ── Optional: custom port (default 8080) ─────────────────────────
       # PORT: 9000
+
+      # ── Optional: custom logo ─────────────────────────────────────────
+      # Option A: an image URL or data: URI, used as-is in <img src>.
+      # LOGO_URL: "https://example.com/logo.png"
+      # Option B: a file mounted into the container (see volumes above) —
+      # served publicly at /logo and takes priority over LOGO_URL.
+      LOGO_PATH: "/app/logo.png"
+
+      # ── Optional: session lifetime in hours (default 8) ───────────────
+      #SESSION_TTL_HOURS: 12
+
+      # ── Optional: login lockout after repeated failures ───────────────
+      # Global counter (not per-IP/user) — resets on container restart.
+      MAX_LOGIN_ATTEMPTS: 5
+      LOGIN_LOCKOUT_HOURS: 12
     restart: unless-stopped
     healthcheck:
-      # /health is always public — exempt from Basic Auth
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/logvault/health || exit 1"]
+      # scratch image has no shell/wget — binary checks its own /health
+      test: ["CMD", "/logvault", "-healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 3
