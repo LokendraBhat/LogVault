@@ -46,6 +46,7 @@ func browseHandler(w http.ResponseWriter, r *http.Request) {
 		Port:         getEnv("PORT", "8080"),
 		AuthEnabled:  auth.enabled,
 		LogoutAction: p("/logout"),
+		LogoURL:      logoURL,
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	browserTmpl.Execute(w, data)
@@ -136,9 +137,18 @@ func viewHandler(w http.ResponseWriter, r *http.Request) {
 		BrowseURL:    browseURLFromFilePath(name),
 		AuthEnabled:  auth.enabled,
 		LogoutAction: p("/logout"),
+		LogoURL:      logoURL,
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	viewerTmpl.Execute(w, data)
+}
+
+func logoHandler(w http.ResponseWriter, r *http.Request) {
+	if logoPath == "" {
+		http.NotFound(w, r)
+		return
+	}
+	http.ServeFile(w, r, logoPath)
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {

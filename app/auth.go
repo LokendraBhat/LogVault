@@ -51,6 +51,8 @@ func loginPageHandler(w http.ResponseWriter, r *http.Request) {
 	loginTmpl.Execute(w, map[string]string{
 		"Error":       "",
 		"LoginAction": p("/login"),
+		"LogoURL":     logoURL,
+		"SessionTTL":  sessionTTLLabel(),
 	})
 }
 
@@ -82,6 +84,8 @@ func loginPostHandler(w http.ResponseWriter, r *http.Request) {
 	loginTmpl.Execute(w, map[string]string{
 		"Error":       "Invalid username or password",
 		"LoginAction": p("/login"),
+		"LogoURL":     logoURL,
+		"SessionTTL":  sessionTTLLabel(),
 	})
 }
 

@@ -10,7 +10,7 @@ var loginTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LogVault · Sign In</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>">
+  <link rel="icon" href="{{if .LogoURL}}{{.LogoURL}}{{else}}data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>{{end}}">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root{--bg:#0c0c0c;--surface:#161616;--border:#242424;--accent:#10b981;--text:#d4d4d8;--muted:#52525b;--danger:#ef4444}
@@ -19,6 +19,7 @@ var loginTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
     .card{width:100%;max-width:380px;margin:1rem;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:2.2rem}
     .logo-row{display:flex;align-items:center;gap:.7rem;margin-bottom:.3rem}
     .logo-icon{width:34px;height:34px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.95rem;color:#000;font-weight:700}
+    img.logo-icon{background:none;object-fit:contain}
     h1{font-weight:700;font-size:1.4rem;color:var(--text)}
     .tagline{font-size:.7rem;color:var(--muted);margin-bottom:1.8rem}
     label{display:block;font-size:.68rem;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:.35rem}
@@ -32,7 +33,7 @@ var loginTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
 </head>
 <body>
   <div class="card">
-    <div class="logo-row"><div class="logo-icon">⬡</div><h1>LogVault</h1></div>
+    <div class="logo-row">{{if .LogoURL}}<img class="logo-icon" src="{{.LogoURL}}" alt="LogVault logo">{{else}}<div class="logo-icon">⬡</div>{{end}}<h1>LogVault</h1></div>
     <p class="tagline">sign in to continue</p>
     {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
     <form method="POST" action="{{.LoginAction}}">
@@ -42,7 +43,7 @@ var loginTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
       <input type="password" name="password" autocomplete="current-password" placeholder="password">
       <button type="submit">Sign In</button>
     </form>
-    <p class="hint">session expires after 8 hours</p>
+    <p class="hint">session expires after {{.SessionTTL}}</p>
   </div>
 </body>
 </html>`))
@@ -55,7 +56,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LogVault{{if .SubPath}} · /{{.SubPath}}{{end}}</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>">
+  <link rel="icon" href="{{if .LogoURL}}{{.LogoURL}}{{else}}data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>{{end}}">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root{--bg:#0c0c0c;--surface:#161616;--border:#242424;--accent:#10b981;--text:#d4d4d8;--muted:#52525b;--folder:#d97706;--danger:#ef4444}
@@ -63,8 +64,10 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;min-height:100vh}
     .container{max-width:960px;margin:0 auto;padding:2rem 1.5rem}
     .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.75rem}
-    .logo-row{display:flex;align-items:center;gap:.7rem}
+    .logo-row{display:flex;align-items:center;gap:.7rem;text-decoration:none;color:inherit;transition:opacity .15s}
+    .logo-row:hover{opacity:.8}
     .logo-icon{width:32px;height:32px;background:var(--accent);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:.88rem;color:#000;font-weight:700}
+    img.logo-icon{background:none;object-fit:contain}
     h1{font-weight:700;font-size:1.3rem;color:var(--text)}
     .logout-btn{padding:.35rem .8rem;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:.68rem;cursor:pointer;transition:all .15s}
     .logout-btn:hover{border-color:var(--danger);color:var(--danger)}
@@ -116,7 +119,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
 <body>
   <div class="container">
     <div class="topbar">
-      <div class="logo-row"><div class="logo-icon">⬡</div><h1>LogVault</h1></div>
+      <a class="logo-row" href="{{.BrowseRoot}}">{{if .LogoURL}}<img class="logo-icon" src="{{.LogoURL}}" alt="LogVault logo">{{else}}<div class="logo-icon">⬡</div>{{end}}<h1>LogVault</h1></a>
       {{if .AuthEnabled}}
       <form method="POST" action="{{.LogoutAction}}" style="margin:0">
         <button class="logout-btn" type="submit">Sign out</button>
@@ -185,7 +188,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     </div>
     {{end}}
 
-    <div class="footer"><a href="https://github.com/lokendrabhat/logvault" target="_blank" rel="noopener noreferrer"><strong>LogVault</strong></a> · Minimal Log Server · by <a href="https://lokendrabhat.com.np" target="_blank" rel="noopener noreferrer"><strong>Lokendra Bhat</strong></a></div>
+    <div class="footer"><a href="https://github.com/lokendrabhat/logvault" target="_blank" rel="noopener noreferrer"><strong>LogVault</strong></a> · Minimal Log Server</div>
   </div>
   <script>
     var sortCol = 'name', sortDir = 1;
@@ -223,7 +226,7 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>tail · {{.FileName}}</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>">
+  <link rel="icon" href="{{if .LogoURL}}{{.LogoURL}}{{else}}data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>{{end}}">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root{--bg:#0c0c0c;--surface:#141414;--border:#222;--accent:#10b981;--text:#d4d4d8;--muted:#52525b;--danger:#ef4444}
@@ -232,6 +235,7 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
     .topbar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:.6rem 1.2rem;background:var(--surface);border-bottom:1px solid var(--border)}
     .topbar-left{display:flex;align-items:center;gap:.8rem}
     .logo-icon{width:28px;height:28px;background:var(--accent);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.8rem;color:#000;font-weight:700;flex-shrink:0}
+    img.logo-icon{background:none;object-fit:contain}
     .file-label{font-size:.65rem;color:var(--muted)}
     .file-name{font-size:.8rem;color:var(--text);font-weight:600}
     .topbar-right{display:flex;align-items:center;gap:.5rem}
@@ -266,7 +270,7 @@ var tailTmpl = template.Must(template.New("tail").Parse(`<!DOCTYPE html>
 <body>
   <div class="topbar">
     <div class="topbar-left">
-      <div class="logo-icon">⬡</div>
+      {{if .LogoURL}}<img class="logo-icon" src="{{.LogoURL}}" alt="LogVault logo">{{else}}<div class="logo-icon">⬡</div>{{end}}
       <div>
         <div class="file-label">tailing</div>
         <div class="file-name">{{.FilePath}}</div>
@@ -463,7 +467,7 @@ var viewerTmpl = template.Must(template.New("viewer").Parse(`<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>view · {{.FileName}}</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>">
+  <link rel="icon" href="{{if .LogoURL}}{{.LogoURL}}{{else}}data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>{{end}}">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     :root{--bg:#0c0c0c;--surface:#141414;--border:#222;--accent:#10b981;--text:#d4d4d8;--muted:#52525b;--danger:#ef4444}
@@ -472,6 +476,7 @@ var viewerTmpl = template.Must(template.New("viewer").Parse(`<!DOCTYPE html>
     .topbar{flex-shrink:0;display:flex;align-items:center;gap:.8rem;padding:.6rem 1.2rem;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
     .topbar-left{display:flex;align-items:center;gap:.8rem;flex:1;min-width:0}
     .logo-icon{width:28px;height:28px;background:var(--accent);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.8rem;color:#000;font-weight:700;flex-shrink:0}
+    img.logo-icon{background:none;object-fit:contain}
     .file-label{font-size:.65rem;color:var(--muted)}
     .file-name{font-size:.8rem;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .search-row{display:flex;align-items:center;gap:.4rem;flex-shrink:0}
@@ -507,7 +512,7 @@ var viewerTmpl = template.Must(template.New("viewer").Parse(`<!DOCTYPE html>
 <body>
   <div class="topbar">
     <div class="topbar-left">
-      <div class="logo-icon">⬡</div>
+      {{if .LogoURL}}<img class="logo-icon" src="{{.LogoURL}}" alt="LogVault logo">{{else}}<div class="logo-icon">⬡</div>{{end}}
       <div style="min-width:0">
         <div class="file-label">viewing</div>
         <div class="file-name">{{.FilePath}}</div>

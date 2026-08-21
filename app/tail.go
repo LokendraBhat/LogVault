@@ -46,6 +46,7 @@ func tailPageHandler(w http.ResponseWriter, r *http.Request) {
 		BrowseURL:    browseURLFromFilePath(name),
 		AuthEnabled:  auth.enabled,
 		LogoutAction: p("/logout"),
+		LogoURL:      logoURL,
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	tailTmpl.Execute(w, data)
