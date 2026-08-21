@@ -32,6 +32,11 @@ services:
 
       # ── Optional: session lifetime in hours (default 8) ───────────────
       #SESSION_TTL_HOURS: 12
+
+      # ── Optional: login lockout after repeated failures ───────────────
+      # Global counter (not per-IP/user) — resets on container restart.
+      MAX_LOGIN_ATTEMPTS: 5
+      LOGIN_LOCKOUT_HOURS: 12
     restart: unless-stopped
     healthcheck:
       # scratch image has no shell/wget — binary checks its own /health

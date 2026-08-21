@@ -13,6 +13,7 @@
 - 🔍 Keyword search with highlight, prev/next navigation, and filter mode
 - 🔃 Sortable table columns — click Name, Size, or Modified to sort (asc/desc)
 - 🔐 Optional session-based login page (env-driven, no config files)
+- 🔒 Login lockout after repeated failed attempts (`MAX_LOGIN_ATTEMPTS` / `LOGIN_LOCKOUT_HOURS`)
 - 🗂️ Mount multiple services under `/app/logs/<service>`
 - 🌐 `BASE_PATH` support for reverse proxy subpath deployments
 - 🖼️ Custom logo/favicon across every page via `LOGO_URL` or a mounted `LOGO_PATH` file
@@ -159,6 +160,8 @@ All configuration is via environment variables — no config files needed.
 | `LOGO_URL` | _(unset)_ | Image URL or `data:` URI to use as the logo instead of the default icon. Shown on the login page, navbar, tail, and viewer pages. Ignored if `LOGO_PATH` is also set. |
 | `LOGO_PATH` | _(unset)_ | Path to a logo file mounted into the container (e.g. `/app/logo.png`). Served publicly at `/logo`; takes priority over `LOGO_URL`. |
 | `SESSION_TTL_HOURS` | `8` | Session lifetime in hours before requiring re-login. |
+| `MAX_LOGIN_ATTEMPTS` | `5` | Failed login attempts (global, not per-IP/user) before login is blocked entirely. |
+| `LOGIN_LOCKOUT_HOURS` | `24` | How long login stays blocked after hitting `MAX_LOGIN_ATTEMPTS`. Resets on restart. |
 
 ---
 

@@ -90,6 +90,21 @@ func main() {
 		fmt.Println("Auth disabled — set AUTH_USER and AUTH_PASSWORD to enable")
 	}
 
+	if v := os.Getenv("MAX_LOGIN_ATTEMPTS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			maxLoginAttempts = n
+		} else {
+			fmt.Printf("Invalid MAX_LOGIN_ATTEMPTS %q — using default (%d)\n", v, maxLoginAttempts)
+		}
+	}
+	if v := os.Getenv("LOGIN_LOCKOUT_HOURS"); v != "" {
+		if h, err := strconv.Atoi(v); err == nil && h > 0 {
+			loginLockout = time.Duration(h) * time.Hour
+		} else {
+			fmt.Printf("Invalid LOGIN_LOCKOUT_HOURS %q — using default (%s)\n", v, loginLockout)
+		}
+	}
+
 	os.MkdirAll(logsDir, 0755)
 
 	mux := http.NewServeMux()

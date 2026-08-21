@@ -34,8 +34,9 @@ var loginTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
 <body>
   <div class="card">
     <div class="logo-row">{{if .LogoURL}}<img class="logo-icon" src="{{.LogoURL}}" alt="LogVault logo">{{else}}<div class="logo-icon">⬡</div>{{end}}<h1>LogVault</h1></div>
-    <p class="tagline">sign in to continue</p>
+    {{if not .Locked}}<p class="tagline">sign in to continue</p>{{end}}
     {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+    {{if not .Locked}}
     <form method="POST" action="{{.LoginAction}}">
       <label>Username</label>
       <input type="text" name="username" autocomplete="username" autofocus placeholder="username">
@@ -44,13 +45,12 @@ var loginTmpl = template.Must(template.New("login").Parse(`<!DOCTYPE html>
       <button type="submit">Sign In</button>
     </form>
     <p class="hint">session expires after {{.SessionTTL}}</p>
+    {{end}}
   </div>
 </body>
 </html>`))
 
-var funcMap = template.FuncMap{"notDir": func(b bool) bool { return !b }}
-
-var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!DOCTYPE html>
+var browserTmpl = template.Must(template.New("browser").Parse(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -59,7 +59,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
   <link rel="icon" href="{{if .LogoURL}}{{.LogoURL}}{{else}}data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>{{end}}">
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    :root{--bg:#0c0c0c;--surface:#161616;--border:#242424;--accent:#10b981;--text:#d4d4d8;--muted:#52525b;--folder:#d97706;--danger:#ef4444}
+    :root{--bg:#0c0c0c;--surface:#161616;--border:#242424;--accent:#10b981;--blue:#3b82f6;--text:#d4d4d8;--muted:#52525b;--folder:#d97706;--danger:#ef4444}
     *{margin:0;padding:0;box-sizing:border-box}
     body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;min-height:100vh}
     .container{max-width:960px;margin:0 auto;padding:2rem 1.5rem}
@@ -81,13 +81,15 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     .status-bar span{color:var(--text)}
     .tag{display:inline-block;padding:.1rem .4rem;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:3px;color:var(--accent);font-size:.63rem}
     .log-table{background:var(--surface);border:1px solid var(--border);border-radius:7px;overflow:hidden}
-    .table-header{display:grid;grid-template-columns:1fr 90px 150px auto;padding:.55rem 1rem;border-bottom:1px solid var(--border);font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
-    .log-row{display:grid;grid-template-columns:1fr 90px 150px auto;padding:.75rem 1rem;border-bottom:1px solid var(--border);align-items:center;transition:background .12s;position:relative}
+    .table-header{display:grid;grid-template-columns:1fr 90px 150px 235px;padding:.55rem 1rem;border-bottom:1px solid var(--border);font-size:.6rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+    .log-row{display:grid;grid-template-columns:1fr 90px 150px 235px;padding:.75rem 1rem;border-bottom:1px solid var(--border);align-items:center;transition:background .12s;position:relative;text-decoration:none;color:inherit}
     .log-row:last-child{border-bottom:none}
     .log-row:hover{background:rgba(255,255,255,.02)}
     .log-row::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent);opacity:0;transition:opacity .12s}
     .log-row:hover::before{opacity:.6}
+    a.log-row{cursor:pointer}
     .log-row.is-dir::before{background:var(--folder)}
+    .log-row.is-dir:hover .dir-link{color:#fbbf24}
     .entry-name{display:flex;align-items:center;gap:.55rem;font-size:.8rem;overflow:hidden}
     .entry-icon{flex-shrink:0;font-size:.8rem;width:20px;text-align:center;color:var(--muted)}
     .entry-link{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none;color:inherit;transition:color .12s}
@@ -99,8 +101,8 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     .file-modified{font-size:.7rem;color:var(--muted)}
     .actions{display:flex;align-items:center;gap:.4rem}
     .download-btn,.tail-btn,.view-btn{display:inline-flex;align-items:center;gap:.3rem;padding:.28rem .65rem;background:transparent;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:.67rem;text-decoration:none;transition:all .12s;white-space:nowrap}
-    .view-btn{border:1px solid var(--border);color:var(--muted)}
-    .view-btn:hover{border-color:var(--text);color:var(--text)}
+    .view-btn{border:1px solid rgba(59,130,246,.35);color:var(--blue)}
+    .view-btn:hover{background:rgba(59,130,246,.15);border-color:var(--blue)}
     .download-btn{border:1px solid var(--border);color:var(--muted)}
     .download-btn:hover{border-color:var(--accent);color:var(--accent)}
     .tail-btn{border:1px solid rgba(16,185,129,.3);color:var(--accent)}
@@ -151,34 +153,40 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
         <div>Actions</div>
       </div>
       {{if .SubPath}}
-      <div class="log-row" data-parent="1">
+      <a class="log-row" href="{{.ParentURL}}" data-parent="1">
         <div class="entry-name">
           <div class="entry-icon">↑</div>
-          <a class="entry-link up-link" href="{{.ParentURL}}">..</a>
+          <span class="entry-link up-link">..</span>
         </div>
         <div></div><div></div><div></div>
-      </div>
+      </a>
       {{end}}
       {{range .Entries}}
-      <div class="log-row{{if .IsDir}} is-dir{{end}}" data-name="{{.Name}}" data-size="{{.SizeBytes}}" data-modified="{{.Modified}}" data-isdir="{{if .IsDir}}1{{else}}0{{end}}">
+      {{if .IsDir}}
+      <a class="log-row is-dir" href="{{.BrowseURL}}" data-name="{{.Name}}" data-size="{{.SizeBytes}}" data-modified="{{.Modified}}" data-isdir="1">
         <div class="entry-name">
-          <div class="entry-icon">{{if .IsDir}}▶{{else}}≡{{end}}</div>
-          {{if .IsDir}}
-            <a class="entry-link dir-link" href="{{.BrowseURL}}">{{.Name}}</a>
-          {{else}}
-            <span class="entry-link" style="cursor:default">{{.Name}}</span>
-          {{end}}
+          <div class="entry-icon">▶</div>
+          <span class="entry-link dir-link">{{.Name}}</span>
         </div>
-        <div class="file-size">{{if notDir .IsDir}}{{.Size}}{{else}}—{{end}}</div>
+        <div class="file-size">—</div>
+        <div class="file-modified">{{.Modified}}</div>
+        <div class="actions"></div>
+      </a>
+      {{else}}
+      <div class="log-row" data-name="{{.Name}}" data-size="{{.SizeBytes}}" data-modified="{{.Modified}}" data-isdir="0">
+        <div class="entry-name">
+          <div class="entry-icon">≡</div>
+          <span class="entry-link" style="cursor:default">{{.Name}}</span>
+        </div>
+        <div class="file-size">{{.Size}}</div>
         <div class="file-modified">{{.Modified}}</div>
         <div class="actions">
-          {{if notDir .IsDir}}
           <a class="view-btn" href="{{.ViewURL}}">≡ View</a>
           <a class="tail-btn" href="{{.TailURL}}">⊞ Tail</a>
           <a class="download-btn" href="{{.DownloadURL}}">↓ Download</a>
-          {{end}}
         </div>
       </div>
+      {{end}}
       {{end}}
     </div>
     {{else}}
