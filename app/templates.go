@@ -185,7 +185,7 @@ var browserTmpl = template.Must(template.New("browser").Funcs(funcMap).Parse(`<!
     </div>
     {{end}}
 
-    <div class="footer">LogVault · Minimal Log Server · by Lokendra Bhat</div>
+    <div class="footer"><a href="https://github.com/lokendrabhat/logvault" target="_blank" rel="noopener noreferrer"><strong>LogVault</strong></a> · Minimal Log Server · by <a href="https://lokendrabhat.com.np" target="_blank" rel="noopener noreferrer"><strong>Lokendra Bhat</strong></a></div>
   </div>
   <script>
     var sortCol = 'name', sortDir = 1;
